@@ -1,3 +1,17 @@
+## NOTE: this fork introduces support for automatic theme switching base on the system theme
+
+An example config would be something like:
+
+```toml
+[theme]
+light = "zed_onelight"
+dark = "zed_onedark"
+```
+
+DO NOT forget to set `HELIX_RUNTIME` with `export HELIX_RUNTIME=<your_path>`.
+
+Then simply run `./install.sh` to install optimized binary.
+
 <div align="center">
 
 <h1>

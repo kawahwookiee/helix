@@ -15,6 +15,7 @@ use crossterm::{
     Command,
 };
 use helix_view::graphics::{Color, CursorKind, Modifier, Rect, UnderlineStyle};
+use helix_view::theme;
 use once_cell::sync::OnceCell;
 use std::{
     fmt,
@@ -328,7 +329,13 @@ where
     }
 
     fn get_theme_mode(&self) -> Option<helix_view::theme::Mode> {
-        None
+        // Crossterm doesn't support mode 2031, so use OS-level detection
+        theme::system::detect()
+    }
+
+    fn supports_theme_notification(&self) -> bool {
+        // Crossterm doesn't support mode 2031
+        false
     }
 }
 

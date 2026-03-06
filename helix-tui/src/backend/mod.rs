@@ -45,4 +45,7 @@ pub trait Backend {
     fn flush(&mut self) -> Result<(), io::Error>;
     fn supports_true_color(&self) -> bool;
     fn get_theme_mode(&self) -> Option<helix_view::theme::Mode>;
+    /// Returns true if the terminal supports mode 2031 (dark/light theme notifications).
+    /// When supported, the terminal will send events when the theme changes.
+    fn supports_theme_notification(&self) -> bool;
 }

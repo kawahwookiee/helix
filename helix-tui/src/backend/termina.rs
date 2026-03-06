@@ -569,7 +569,16 @@ impl Backend for TerminaBackend {
     }
 
     fn get_theme_mode(&self) -> Option<theme::Mode> {
-        self.capabilities.theme_mode
+        // First try terminal-reported theme mode (mode 2031)
+        // Fall back to OS-level detection if terminal doesn't support it
+        self.capabilities
+            .theme_mode
+            .or_else(theme::system::detect)
+    }
+
+    fn supports_theme_notification(&self) -> bool {
+        // Terminal supports mode 2031 if it reported a theme mode during capability detection
+        self.capabilities.theme_mode.is_some()
     }
 }
 

@@ -1062,6 +1062,32 @@ fn theme(cx: &mut compositor::Context, args: Args, event: PromptEvent) -> anyhow
     Ok(())
 }
 
+fn theme_mode(cx: &mut compositor::Context, args: Args, event: PromptEvent) -> anyhow::Result<()> {
+    if event != PromptEvent::Validate {
+        return Ok(());
+    }
+
+    use helix_view::editor::ConfigEvent;
+    use helix_view::theme::Mode;
+
+    let mode = match args.first().map(|s| s.to_lowercase()).as_deref() {
+        Some("dark") => Some(Some(Mode::Dark)),
+        Some("light") => Some(Some(Mode::Light)),
+        Some("auto") => Some(None), // None means auto-detect
+        Some(other) => bail!("Invalid theme mode '{}'. Use 'dark', 'light', or 'auto'.", other),
+        None => None, // No argument: show current mode
+    };
+
+    if let Some(mode) = mode {
+        let _ = cx.editor.config_events.0.send(ConfigEvent::SetThemeMode(mode));
+    } else {
+        // Show help message
+        cx.editor.set_status("Usage: :theme-mode <dark|light|auto>");
+    }
+
+    Ok(())
+}
+
 fn yank_main_selection_to_clipboard(
     cx: &mut compositor::Context,
     _args: Args,
@@ -3200,6 +3226,17 @@ pub const TYPABLE_COMMAND_LIST: &[TypableCommand] = &[
         doc: "Change the editor theme (show current theme if no name specified).",
         fun: theme,
         completer: CommandCompleter::positional(&[completers::theme]),
+        signature: Signature {
+            positionals: (0, Some(1)),
+            ..Signature::DEFAULT
+        },
+    },
+    TypableCommand {
+        name: "theme-mode",
+        aliases: &[],
+        doc: "Set theme mode: 'dark', 'light', or 'auto' (detect from system).",
+        fun: theme_mode,
+        completer: CommandCompleter::positional(&[completers::theme_mode]),
         signature: Signature {
             positionals: (0, Some(1)),
             ..Signature::DEFAULT

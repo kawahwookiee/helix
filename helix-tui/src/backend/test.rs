@@ -164,4 +164,8 @@ impl Backend for TestBackend {
     fn get_theme_mode(&self) -> Option<helix_view::theme::Mode> {
         None
     }
+
+    fn supports_theme_notification(&self) -> bool {
+        false
+    }
 }

@@ -33,8 +33,11 @@ use log::{debug, error, info, warn};
 use std::{
     io::{stdin, IsTerminal},
     path::Path,
+    pin::Pin,
     sync::Arc,
+    time::Duration,
 };
+use tokio::time::{interval, Interval};
 
 #[cfg_attr(windows, allow(unused_imports))]
 use anyhow::{Context, Error};
@@ -78,7 +81,13 @@ pub struct Application {
     jobs: Jobs,
     lsp_progress: LspProgressMap,
 
+    /// Current theme mode (dark/light)
     theme_mode: Option<theme::Mode>,
+    /// Whether the terminal supports mode 2031 (dark/light notifications).
+    /// If true, we don't need to poll the system theme.
+    terminal_supports_theme_notification: bool,
+    /// Timer for polling system theme changes when terminal doesn't support mode 2031
+    theme_poll_timer: Pin<Box<Interval>>,
 }
 
 #[cfg(feature = "integration")]
@@ -124,6 +133,7 @@ impl Application {
         let backend = TestBackend::new(120, 150);
 
         let theme_mode = backend.get_theme_mode();
+        let terminal_supports_theme_notification = backend.supports_theme_notification();
         let terminal = Terminal::new(backend)?;
         let area = terminal.size();
         let mut compositor = Compositor::new(area);
@@ -256,6 +266,9 @@ impl Application {
         ])
         .context("build signal handler")?;
 
+        // Poll system theme every 5 seconds if terminal doesn't support theme notifications
+        let theme_poll_timer = Box::pin(interval(Duration::from_secs(5)));
+
         let app = Self {
             compositor,
             terminal,
@@ -265,6 +278,8 @@ impl Application {
             jobs,
             lsp_progress: LspProgressMap::new(),
             theme_mode,
+            terminal_supports_theme_notification,
+            theme_poll_timer,
         };
 
         Ok(app)
@@ -367,6 +382,10 @@ impl Application {
                         }
                     }
                 }
+                // Poll for system theme changes when terminal doesn't support mode 2031
+                _ = self.theme_poll_timer.tick(), if !self.terminal_supports_theme_notification => {
+                    self.check_system_theme_change();
+                }
             }
 
             // for integration tests only, reset the idle timer after every
@@ -394,6 +413,27 @@ impl Application {
                     self.editor.set_error(err.to_string());
                 };
                 self.config.store(Arc::new(app_config));
+            }
+
+            // Set the theme mode (dark/light/auto)
+            ConfigEvent::SetThemeMode(mode) => {
+                // If mode is None, re-detect from system
+                let new_mode = mode.or_else(theme::system::detect);
+                if new_mode != self.theme_mode {
+                    self.theme_mode = new_mode;
+                    Self::load_configured_theme(
+                        &mut self.editor,
+                        &self.config.load(),
+                        self.terminal.backend().supports_true_color(),
+                        new_mode,
+                    );
+                }
+                let mode_str = match new_mode {
+                    Some(theme::Mode::Dark) => "dark",
+                    Some(theme::Mode::Light) => "light",
+                    None => "auto (undetected)",
+                };
+                self.editor.set_status(format!("Theme mode: {}", mode_str));
             }
         }
 
@@ -491,6 +531,27 @@ impl Application {
             })
             .unwrap_or_else(|| editor.theme_loader.default_theme(true_color));
         editor.set_theme(theme);
+    }
+
+    /// Check if the system theme has changed and update the theme if needed.
+    /// This is called periodically when the terminal doesn't support mode 2031.
+    fn check_system_theme_change(&mut self) {
+        let new_mode = theme::system::detect();
+        if new_mode != self.theme_mode {
+            log::info!(
+                "System theme changed from {:?} to {:?}",
+                self.theme_mode,
+                new_mode
+            );
+            self.theme_mode = new_mode;
+            Self::load_configured_theme(
+                &mut self.editor,
+                &self.config.load(),
+                self.terminal.backend().supports_true_color(),
+                new_mode,
+            );
+            helix_event::request_redraw();
+        }
     }
 
     #[cfg(windows)]

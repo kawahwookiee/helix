@@ -1265,6 +1265,8 @@ pub enum EditorEvent {
 pub enum ConfigEvent {
     Refresh,
     Update(Box<Config>),
+    /// Set the theme mode preference. `None` means auto-detect from system.
+    SetThemeMode(Option<theme::Mode>),
 }
 
 enum ThemeAction {

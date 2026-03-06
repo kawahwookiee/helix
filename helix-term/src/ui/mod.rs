@@ -464,6 +464,14 @@ pub mod completers {
             .collect()
     }
 
+    pub fn theme_mode(_editor: &Editor, input: &str) -> Vec<Completion> {
+        let modes = ["dark", "light", "auto"];
+        fuzzy_match(input, modes, false)
+            .into_iter()
+            .map(|(name, _)| ((0..), Span::raw(name.to_string())))
+            .collect()
+    }
+
     /// Recursive function to get all keys from this value and add them to vec
     fn get_keys(value: &serde_json::Value, vec: &mut Vec<String>, scope: Option<&str>) {
         if let Some(map) = value.as_object() {
